@@ -16,4 +16,4 @@ def submit_img(conn_str, table, img):
     df = pd.DataFrame([inp], columns=inp.keys())
     out = RxSqlServerData(table=table, connection_string=conn_str)
     rx_data_step(input_data=df, output_file = out, overwrite=True)
-    print("{} uploaded to {}".format(img, table))
+    print(f"{img} uploaded to {table}")

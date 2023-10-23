@@ -25,13 +25,13 @@ def prepare_data(conn_str, feature_table, train_table, test_table, evaluation_ta
 def train_classifier(conn_str, feature_table, training_table, testing_table, score_table, model_table, DNNDimension):
     levels = get_label_levels(feature_table, conn_str)  # get levels of Label
     colInfo = {"Label": {"type": "factor", "levels": levels}}
-    train_query = "SELECT * FROM {} WHERE image IN (SELECT image FROM {})".format(feature_table, training_table)
+    train_query = f"SELECT * FROM {feature_table} WHERE image IN (SELECT image FROM {training_table})"
     train_data = RxSqlServerData(sql_query=train_query, connection_string=conn_str, column_info=colInfo)
 
-    test_query = "SELECT * FROM {} WHERE image IN (SELECT image FROM {})".format(feature_table, testing_table)
+    test_query = f"SELECT * FROM {feature_table} WHERE image IN (SELECT image FROM {testing_table})"
     test_data = RxSqlServerData(sql_query=test_query, connection_string=conn_str, column_info=colInfo)
 
-    featureSet = ["feature." + str(i) for i in range(DNNDimension)]
+    featureSet = [f"feature.{str(i)}" for i in range(DNNDimension)]
     label = "Label"
     cols = featureSet + [label]
     classifier = rx_neural_network("Label ~ feature", data=train_data, method="multiClass",
@@ -46,8 +46,8 @@ def train_classifier(conn_str, feature_table, training_table, testing_table, sco
     train_score = rx_predict(classifier, train_data, extra_vars_to_write=["image", "Label"])
     testACC = float(len(test_score[test_score["Label"] == test_score["PredictedLabel"]])) / len(test_score)
     trainACC = float(len(train_score[train_score["Label"] == train_score["PredictedLabel"]])) / len(train_score)
-    print("The train accuracy of the neural network model is {}".format(trainACC))
-    print("The test accuracy of the neural network model is {}".format(testACC))
+    print(f"The train accuracy of the neural network model is {trainACC}")
+    print(f"The test accuracy of the neural network model is {testACC}")
 
     print("Saving the predictive results of all the images into SQL table...")
     outputScore = RxSqlServerData(connection_string=conn_str, table=score_table)

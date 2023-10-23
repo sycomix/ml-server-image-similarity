@@ -21,8 +21,7 @@ def get_files_in_directory(directory, postfix = ""):
         return [s for s in fileNames if s.lower().endswith(postfix)]
 
 def get_random_number(low, high):
-    randomNumber = random.randint(low, high)
-    return randomNumber
+    return random.randint(low, high)
 
 def get_random_list_element(listND, containsHeader = False):
     if containsHeader:
@@ -61,7 +60,7 @@ def is_same_class(queryClass, targetClass):
 
 def prepare_evaluation_set(conn_str, feature_table, test_table, evaluation_table, maxQueryImgsPerCat, maxNegImgsPerQueryImg):
     evaluation_set = DataFrame()
-    query = "SELECT image, Label FROM {} WHERE image IN (SELECT image FROM {})".format(feature_table, test_table)
+    query = f"SELECT image, Label FROM {feature_table} WHERE image IN (SELECT image FROM {test_table})"
     test_images = RxSqlServerData(sql_query=query, connection_string=conn_str)
     test_images_df = rx_import(test_images)
     classes = test_images_df.Label.unique()
@@ -69,11 +68,11 @@ def prepare_evaluation_set(conn_str, feature_table, test_table, evaluation_table
         query_images = shuffle(test_images_df.loc[test_images_df["Label"] == queryCat, "image"])
         selectQueryImages = query_images.sample(n=maxQueryImgsPerCat, random_state=0, replace=True)
         for index, queryImage in selectQueryImages.iteritems():
-            refImage = get_random_list_element(list(set(query_images) - set([queryImage])))
+            refImage = get_random_list_element(list(set(query_images) - {queryImage}))
             firstitem = DataFrame({'queryCat': [queryCat], 'queryImage': [queryImage], 'refCat': [queryCat], 'refImage': [refImage]})
             evaluation_set = concat([evaluation_set, firstitem])
             for _ in range(maxNegImgsPerQueryImg):
-                refCat = get_random_list_element(list(set(classes) - set([queryCat])))
+                refCat = get_random_list_element(list(set(classes) - {queryCat}))
                 refImages = test_images_df.loc[test_images_df["Label"] == refCat, "image"]
                 refImage = shuffle(refImages).sample(n=1, random_state=0)
                 refImage = refImage.iloc[0]
@@ -114,24 +113,19 @@ def map_category_to_label(image_table, conn_str):
     return lutLabel2Id
 
 def get_label_levels(feature_table, conn_str):
-    levels = []
     query = "SELECT Label FROM " + feature_table
     labels_sql = RxSqlServerData(sql_query=query, connection_string=conn_str)
     labels_level = rx_import(labels_sql)
-    for index, key in enumerate(labels_level.Label.unique()):
-        levels.append(str(int(key)))
-    return levels
+    return [str(int(key)) for key in labels_level.Label.unique()]
 
 def get_image_path(image_table, connection_string):
     query = 'SELECT (FILETABLEROOTPATH() + [file_stream].GetFileNamespacePath()) as image FROM ' + image_table + " WHERE is_directory = 0"
     filetable_sql = RxSqlServerData(sql_query=query, connection_string=connection_string)
-    imageData = rx_import(filetable_sql, strings_as_factors=False)
-    return imageData
+    return rx_import(filetable_sql, strings_as_factors=False)
 
 def get_image_label(path, lutLabel2Id):
     pathitems = path.split('\\')
-    label = lutLabel2Id[pathitems[len(pathitems) - 2]]
-    return label
+    return lutLabel2Id[pathitems[len(pathitems) - 2]]
 
 def get_training_testing_images(image_data, train_test_ratio, train_table, test_table, conn_str):
     trainImages = DataFrame()
@@ -175,15 +169,13 @@ def save_model(table_name, connection_string, classifier, name):
 
 def load_model(table_name, connection_string, name):
     classifier_odbc = RxOdbcData(connection_string, table=table_name)
-    classifier = rx_read_object(classifier_odbc, key=name, deserialize=True)
-    return classifier
+    return rx_read_object(classifier_odbc, key=name, deserialize=True)
 
 def generate_model_formula(sql_data):
     features_all = rx_get_var_names(sql_data)
     features_to_remove = ["Label", "image"]
     train_features = [x for x in features_all if x not in features_to_remove]
-    formula = "Label ~ " + " + ".join(train_features)
-    return formula
+    return "Label ~ " + " + ".join(train_features)
 
 def calculate_ranking_metrics(imageFeatures, imagePairData, distMethods):
     queryImageInfo = imagePairData.queryImage.unique()
@@ -193,7 +185,8 @@ def calculate_ranking_metrics(imageFeatures, imagePairData, distMethods):
         queryFeat = imageFeatures[queryKey]
         if queryIndex % 50 == 0:
             print(
-                "Computing distances for query image {} of {}: {}..".format(queryIndex, len(queryImageInfo), queryKey))
+                f"Computing distances for query image {queryIndex} of {len(queryImageInfo)}: {queryKey}.."
+            )
         refImages = imagePairData[imagePairData["queryImage"] == queryKey]
         for index, row in refImages.iterrows():
             refFeat = imageFeatures[row["refImage"]]
@@ -221,7 +214,7 @@ def calculate_ranking_metrics(imageFeatures, imagePairData, distMethods):
         top20Acc = 100.0 * np.sum(np.array(correctRanks) <= 20) / len(correctRanks)
         top28Acc = 100.0 * np.sum(np.array(correctRanks) <= 28) / len(correctRanks)
         top32Acc = 100.0 * np.sum(np.array(correctRanks) <= 32) / len(correctRanks)
-        print("correct Ranks [%s]" % ", ".join(map(str, correctRanks)))
+        print(f'correct Ranks [{", ".join(map(str, correctRanks))}]')
         print("Distance {:>10}: top1Acc = {:5.2f}%, top2Acc = {:5.2f}%, top4Acc = {:5.2f}%, "
               "top5Acc = {:5.2f}%, top8Acc = {:5.2f}%, top10Acc = {:5.2f}%, top15Acc = {:5.2f}%, "
               "top20Acc = {:5.2f}%, top28Acc = {:5.2f}%, top32Acc = {:5.2f}%, meanRank = {:5.2f}, medianRand = {:2.0f}".format(
@@ -231,6 +224,5 @@ def load_predicted_scores(conn_str, score_table):
     sqlQuery = "SELECT * FROM " + score_table
     images = RxSqlServerData(connection_string=conn_str, sql_query=sqlQuery, strings_as_factors=False)
     imageScores = rx_import(images)
-    image_scores = map_images_to_predictedscores(imageScores)
-    return image_scores
+    return map_images_to_predictedscores(imageScores)
 

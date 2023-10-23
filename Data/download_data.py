@@ -10,7 +10,7 @@ def download_and_place(type, link, data_dir, index):
     if not os.path.exists(os.path.join(data_dir, type)):
         os.makedirs(os.path.join(data_dir, type))
 
-    dstPath = os.path.join(data_dir, type, str(index) + ".jpg")
+    dstPath = os.path.join(data_dir, type, f"{str(index)}.jpg")
     if os.path.isfile(dstPath):
         print("Already downloaded image: " + link)
     else:
@@ -18,18 +18,18 @@ def download_and_place(type, link, data_dir, index):
             resp = urllib.request.urlopen(link,timeout=10)
             with open(dstPath, "wb") as f:
                 f.write(resp.read())
-                
+
             #urllib.request.urlretrieve(link, dstPath)
             #img = imread(dstPath)
             #assert(img is not None) # test if image was loaded correctly
             #print("Downloaded image {:4}: {}".format(index, link))
         except (URLError,HTTPError) as error:
-            print("URL {} not retrieved because {}".format(link,error))
+            print(f"URL {link} not retrieved because {error}")
             if os.path.exists(dstPath):
                 os.remove(dstPath)
             return 0
         except timeout:
-            print("Socket timed out - URL {}".format(link))
+            print(f"Socket timed out - URL {link}")
             if os.path.exists(dstPath):
                 os.remove(dstPath)
             return 0
@@ -46,8 +46,8 @@ def download_all(imgUrlFile, dstDataLoc):
     for index, row in urls.iterrows():
         count = count + download_and_place(row.type, row.link, dstDataLoc, index)
         if (count % 10 == 0):
-            print("downloaded {} images.".format(count))
-    print("Downloaded {} images.".format(count))
+            print(f"downloaded {count} images.")
+    print(f"Downloaded {count} images.")
 
 
 if __name__ == "__main__":
